@@ -34,12 +34,12 @@ public class JwtTokenProvider {
         return Keys.hmacShaKeyFor(jwtSecret.getBytes());
     }
 
-    private String buildToken(String username, Map<String, Object> claims, long expirationMs) {
+    private String buildToken(String email, Map<String, Object> claims, long expirationMs) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + expirationMs);
 
         JwtBuilder builder = Jwts.builder()
-                .subject(username)
+                .subject(email)
                 .issuedAt(now)
                 .expiration(expiryDate)
                 .signWith(getKey());
@@ -57,12 +57,19 @@ public class JwtTokenProvider {
     }
 
     public String generateAccessToken(Authentication authentication) {
-        UserDetails user = extractUserDetails(authentication);
+        UserDetails userDetails  = extractUserDetails(authentication);
         Map<String, Object> claims = new HashMap<>();
-        claims.put("roles", user.getAuthorities().stream()
+        claims.put("roles", userDetails.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.toList()));
-        return buildToken(user.getUsername(), claims, jwtExpirationMs);
+
+        if (userDetails instanceof CustomUserDetails customUser) {
+            claims.put("id", customUser.getId());
+            claims.put("email", customUser.getEmail());
+            claims.put("fullName", customUser.getFullName());
+        }
+
+        return buildToken(userDetails.getUsername(), claims, jwtExpirationMs);
     }
 
     public String generateRefreshToken(Authentication authentication, boolean isRememberMe) {
