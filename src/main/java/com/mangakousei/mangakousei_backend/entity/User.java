@@ -4,7 +4,10 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 
 @Entity
 @Table(name = "users")
@@ -42,9 +45,22 @@ public class User {
             joinColumns = @JoinColumn(name = "user_id"),
             inverseJoinColumns = @JoinColumn(name = "role_id")
     )
-    @Getter
-    private List<Role> roles;
+        @Getter
+        private List<Role> roles;
+    @OneToMany(mappedBy = "user")
+    @JsonManagedReference("notifications")
+        @Builder.Default
+    private List<Notification> notifications = new ArrayList<>();
+    @OneToMany(mappedBy = "creator")
+    @JsonManagedReference("createdSeries")
+        @Builder.Default
+    private List<Series> createdSeries = new ArrayList<>();
+    @OneToMany(mappedBy = "editor")
+    @JsonManagedReference("editedSeries")
+        @Builder.Default
+    private List<Series> editedSeries = new ArrayList<>();
 
+    
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
