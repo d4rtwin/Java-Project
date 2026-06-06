@@ -12,8 +12,7 @@ import lombok.EqualsAndHashCode;
 @Setter
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @Entity
-@Table(name = "Genre")
-public class Genre {
+@Table(name = "genres")
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "genre_id")
