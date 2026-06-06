@@ -45,7 +45,7 @@ public class Series{
     private Long seriesId;
 
     @Column(name = "title", nullable = false, length = 255)
-    private String tittle;
+    private String title;
     
     @Column(name = "description", nullable = false, columnDefinition = "TEXT")
     private String description;
