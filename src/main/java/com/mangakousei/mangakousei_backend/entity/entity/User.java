@@ -115,6 +115,14 @@ public class User {
     @Builder.Default
     private List<Payment> paymentAssistants = new ArrayList<>();
 
+    @OneToMany(mappedBy = "mangaka", cascade = CascadeType.ALL)
+    @JsonManagedReference("MangakaProposals")
+    private List<SeriesProposal> submittedProposals;
+
+    @OneToMany(mappedBy = "reviewedBy")
+    @JsonManagedReference("EditorReviewedProposals")
+    private List<SeriesProposal> reviewedProposals;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
