@@ -48,6 +48,9 @@ public class User {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
+    @Column(name = "avatar_url")
+    private String avatarUrl;
+
     @ManyToMany(fetch = FetchType.EAGER)
     @Builder.Default
     @JoinTable(

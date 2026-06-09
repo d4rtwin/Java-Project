@@ -76,6 +76,7 @@ public class AuthService {
                 .roles(userDetails.getAuthorities().stream()
                         .map(GrantedAuthority::getAuthority)
                         .collect(Collectors.toList()))
+                .avatarUrl(userDetails.getAvatarUrl())
                 .message("Login successful")
                 .build();
     }
@@ -160,6 +161,7 @@ public class AuthService {
                 .roles(userDetails.getAuthorities().stream()
                         .map(GrantedAuthority::getAuthority)
                         .collect(Collectors.toList()))
+                .avatarUrl(userDetails.getAvatarUrl())
                 .build();
     }
 
