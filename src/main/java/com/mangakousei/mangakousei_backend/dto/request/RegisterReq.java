@@ -17,6 +17,6 @@ public class RegisterReq {
     private String email;
 
     @NotBlank(message = "Password cannot be blank")
-    @Size(min = 6, max = 100, message = "Password must be between 6 and 100 characters")
+    @Size(min = 16, max = 100, message = "Password must be between 16 and 100 characters")
     private String password;
 }
