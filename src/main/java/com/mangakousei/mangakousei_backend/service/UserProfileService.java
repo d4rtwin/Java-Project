@@ -55,4 +55,11 @@ public class UserProfileService {
         return userRepository.findById(currentUserId)
                 .orElseThrow(() -> new CustomAppException("User not found", HttpStatus.NOT_FOUND));
     }
+
+    @Transactional(readOnly = true)
+    public UserInfoRes getUserById(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new CustomAppException("User not found", HttpStatus.NOT_FOUND));
+        return userMapper.toDto(user);
+    }
 }

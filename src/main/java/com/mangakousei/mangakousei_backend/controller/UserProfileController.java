@@ -8,10 +8,7 @@ import com.mangakousei.mangakousei_backend.service.UserProfileService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/users")
@@ -34,5 +31,11 @@ public class UserProfileController {
     ) {
         userProfileService.changeMyPassword(request);
         return ResponseEntity.ok(ApiResponse.success("Password changed successfully", null));
+    }
+
+    @GetMapping("/{userId}")
+    public ResponseEntity<ApiResponse<UserInfoRes>> getUserById(@PathVariable Long userId) {
+        UserInfoRes profile = userProfileService.getUserById(userId);
+        return ResponseEntity.ok(ApiResponse.success("Profile fetched successfully", profile));
     }
 }
