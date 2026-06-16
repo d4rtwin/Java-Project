@@ -6,13 +6,17 @@ import com.mangakousei.mangakousei_backend.dto.response.UserInfoRes;
 import com.mangakousei.mangakousei_backend.entity.entity.User;
 import com.mangakousei.mangakousei_backend.exception.CustomAppException;
 import com.mangakousei.mangakousei_backend.mapper.UserMapper;
+import com.mangakousei.mangakousei_backend.repository.ManuscriptRepository;
+import com.mangakousei.mangakousei_backend.repository.SeriesRepository;
 import com.mangakousei.mangakousei_backend.repository.UserRepository;
 import com.mangakousei.mangakousei_backend.util.SecurityUtils;
+import com.mangakousei.mangakousei_backend.dto.response.UserStatsRes;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @RequiredArgsConstructor
@@ -21,7 +25,9 @@ public class UserProfileService {
     private final UserRepository userRepository;
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
-
+    private final CloudinaryService cloudinaryService;
+     private final SeriesRepository seriesRepository;
+     private final ManuscriptRepository manuscriptRepository;
     @Transactional
     public UserInfoRes updateMyProfile(UpdateProfileReq request) {
         User user = getCurrentUser();
@@ -61,5 +67,46 @@ public class UserProfileService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomAppException("User not found", HttpStatus.NOT_FOUND));
         return userMapper.toDto(user);
+    }
+    @Transactional(readOnly = true)
+    public UserStatsRes getUserStats(Long userId){
+        if (!userRepository.existsById(userId)) {
+            throw new CustomAppException("User not found", HttpStatus.NOT_FOUND);
+        }
+        long createdSeriesCount = seriesRepository.countByCreatorUserId(userId);
+        long editedSeriesCount = seriesRepository.countByEditorUserId(userId);
+        long manuscriptCount = manuscriptRepository.countBySubmitterUserId(userId);
+        long totalChaptersCreated = seriesRepository.countChaptersByCreatorUserId(userId);
+        long totalPagesCreated = seriesRepository.countPagesByCreatorUserId(userId);
+        return UserStatsRes.builder()
+            .createdSeriesCount(createdSeriesCount)
+            .editedSeriesCount(editedSeriesCount)
+            .manuscriptCount(manuscriptCount)
+            .totalPagesCreated(totalPagesCreated)
+            .totalChaptersCreated(totalChaptersCreated)
+            .build();
+    }
+    public String extractPublicId(String url) {
+        String path = url.substring(url.indexOf("/upload/") + 8);
+        path = path.replaceFirst("^v\\d+/", "");
+        return path.substring(0, path.lastIndexOf("."));
+    }
+
+    @Transactional
+    public String updateAvatar(MultipartFile file) {
+       User user = getCurrentUser();
+    String oldAvatarUrl = user.getAvatarUrl();
+    String newAvatarUrl = cloudinaryService.uploadAvatar(file);
+    user.setAvatarUrl(newAvatarUrl);
+    userRepository.save(user);
+    if (oldAvatarUrl != null && !oldAvatarUrl.isBlank()) {
+        try {
+            String publicId = extractPublicId(oldAvatarUrl);
+            cloudinaryService.deleteImage(publicId);
+        } catch (Exception e) {
+            throw e;
+        }
+    }
+    return newAvatarUrl;
     }
 }
