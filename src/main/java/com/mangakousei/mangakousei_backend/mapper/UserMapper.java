@@ -21,6 +21,8 @@ public class UserMapper {
             .roles(user.getRoles().stream()
                 .map(r -> r.getRoleName())
                 .collect(Collectors.toList())) 
+            .editedSeries((long) user.getEditedSeries().size())
+            .createdSeries((long) user.getCreatedSeries().size())
             .build();
     }
 }
