@@ -7,6 +7,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import com.mangakousei.mangakousei_backend.exception.CustomAppException;
 import com.mangakousei.mangakousei_backend.security.CustomUserDetails;
 
+import java.util.Objects;
+
 public class SecurityUtils {
     
     public static Long getCurrentUserId() {
@@ -27,6 +29,20 @@ public class SecurityUtils {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         assert auth != null;
         return auth.getAuthorities().stream()
-            .anyMatch(grantedAuthority -> grantedAuthority.getAuthority().equals("ADMIN"));
+            .anyMatch(grantedAuthority -> Objects.equals(grantedAuthority.getAuthority(), "ADMIN"));
+    }
+
+    public static boolean isMangaka() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        assert auth != null;
+        return auth.getAuthorities().stream()
+                .anyMatch(grantedAuthority -> Objects.equals(grantedAuthority.getAuthority(), "MANGAKA"));
+    }
+
+    public static boolean isTantou() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        assert auth != null;
+        return auth.getAuthorities().stream()
+                .anyMatch(grantedAuthority -> Objects.equals(grantedAuthority.getAuthority(), "TANTOU"));
     }
 }
