@@ -80,7 +80,7 @@ public class SeriesProposal {
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
         if (this.status == null) {
-            this.status = "PENDING";
+            this.status = "pending";
         }
     }
 
