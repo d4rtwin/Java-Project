@@ -1,10 +1,12 @@
 package com.mangakousei.mangakousei_backend.service;
 
 import com.mangakousei.mangakousei_backend.dto.request.AdminReviewChapterReq;
+import com.mangakousei.mangakousei_backend.dto.request.LogContext;
 import com.mangakousei.mangakousei_backend.dto.response.ChapterRes;
 import com.mangakousei.mangakousei_backend.dto.response.PageDeadlineRes;
 import com.mangakousei.mangakousei_backend.entity.entity.Chapter;
 import com.mangakousei.mangakousei_backend.entity.status.ChapterStatus;
+import com.mangakousei.mangakousei_backend.entity.type.ActionType;
 import com.mangakousei.mangakousei_backend.exception.CustomAppException;
 import com.mangakousei.mangakousei_backend.repository.ChapterPageDeadlineRepository;
 import com.mangakousei.mangakousei_backend.repository.ChapterRepository;
@@ -24,6 +26,7 @@ public class AdminChapterService {
     private final ChapterRepository chapterRepository;
     private final ChapterStatusRepository chapterStatusRepository;
     private final ChapterPageDeadlineRepository deadlineRepository;
+    private final ActivityLogService activityLogService;
 
     public List<ChapterRes> getPendingPublishChapters() {
         return chapterRepository
@@ -48,7 +51,9 @@ public class AdminChapterService {
                     HttpStatus.BAD_REQUEST);
         }
 
-        if ("approved".equals(req.getDecision())) {
+        boolean approved = "approved".equals(req.getDecision());
+
+        if (approved) {
             ChapterStatus published = chapterStatusRepository
                     .findByChapterStatusName("published")
                     .orElseThrow(() -> new CustomAppException(
@@ -60,7 +65,22 @@ public class AdminChapterService {
             chapter.setAdminNote(req.getNote());
         }
 
-        return toResWithSeries(chapterRepository.save(chapter));
+        ChapterRes result = toResWithSeries(chapterRepository.save(chapter));
+
+        var series = chapter.getSeries();
+        activityLogService.log(LogContext.builder()
+                .actionType(approved ? ActionType.ADMIN_REVIEW_APPROVED : ActionType.ADMIN_REVIEW_REVISION)
+                .detail((approved ? "Admin duyệt đăng" : "Admin yêu cầu chỉnh sửa")
+                        + " Ch." + chapter.getChapterNumber()
+                        + (chapter.getTitle() != null ? " – " + chapter.getTitle() : "")
+                        + (series != null ? " | " + series.getTitle() : ""))
+                .entityType("CHAPTER")
+                .entityId(chapterId)
+                .seriesId(series != null ? series.getSeriesId() : null)
+                .chapterId(chapterId)
+                .build());
+
+        return result;
     }
 
     private ChapterRes toResWithSeries(Chapter c) {

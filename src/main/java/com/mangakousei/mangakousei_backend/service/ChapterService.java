@@ -1,12 +1,14 @@
 package com.mangakousei.mangakousei_backend.service;
 
 import com.mangakousei.mangakousei_backend.dto.request.CreateChapterReq;
+import com.mangakousei.mangakousei_backend.dto.request.LogContext;
 import com.mangakousei.mangakousei_backend.dto.request.ReviewPageGroupReq;
 import com.mangakousei.mangakousei_backend.dto.request.SetPageDeadlineReq;
 import com.mangakousei.mangakousei_backend.dto.response.ChapterRes;
 import com.mangakousei.mangakousei_backend.dto.response.PageDeadlineRes;
 import com.mangakousei.mangakousei_backend.entity.entity.*;
 import com.mangakousei.mangakousei_backend.entity.status.ChapterStatus;
+import com.mangakousei.mangakousei_backend.entity.type.ActionType;
 import com.mangakousei.mangakousei_backend.exception.CustomAppException;
 import com.mangakousei.mangakousei_backend.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +31,7 @@ public class ChapterService {
     private final ChapterStatusRepository chapterStatusRepository;
     private final ChapterPageDeadlineRepository deadlineRepository;
     private final UserRepository userRepository;
+    private final ActivityLogService activityLogService;
 
     public List<ChapterRes> getChaptersBySeries(Long seriesId) {
         return chapterRepository
@@ -81,7 +84,20 @@ public class ChapterService {
                 .chapterStatus(draftStatus)
                 .build();
 
-        return toRes(chapterRepository.save(chapter));
+        Chapter saved = chapterRepository.save(chapter);
+
+        activityLogService.log(LogContext.builder()
+                .actionType(ActionType.CREATE_CHAPTER)
+                .detail("Tạo Chapter " + saved.getChapterNumber()
+                        + (saved.getTitle() != null ? " – " + saved.getTitle() : "")
+                        + " | Series: " + series.getTitle())
+                .entityType("CHAPTER")
+                .entityId(saved.getChapterId())
+                .seriesId(series.getSeriesId())
+                .chapterId(saved.getChapterId())
+                .build());
+
+        return toRes(saved);
     }
 
     @Transactional
@@ -116,6 +132,18 @@ public class ChapterService {
             chapterRepository.save(chapter);
         }
 
+        Series series = chapter.getSeries();
+        activityLogService.log(LogContext.builder()
+                .actionType(ActionType.CREATE_PAGE_DEADLINE)
+                .detail("Tạo deadline trang " + req.getPageFrom() + "–" + req.getPageTo()
+                        + " | Ch." + chapter.getChapterNumber()
+                        + " – " + (series != null ? series.getTitle() : ""))
+                .entityType("PAGE_DEADLINE")
+                .entityId(saved.getDeadlineId())
+                .seriesId(series != null ? series.getSeriesId() : null)
+                .chapterId(chapter.getChapterId())
+                .build());
+
         return toDeadlineRes(saved);
     }
 
@@ -139,7 +167,21 @@ public class ChapterService {
         deadline.setPageTo(req.getPageTo());
         deadline.setDueDate(req.getDueDate());
 
-        return toDeadlineRes(deadlineRepository.save(deadline));
+        ChapterPageDeadline saved = deadlineRepository.save(deadline);
+
+        Chapter chapter = deadline.getChapter();
+        Series series = chapter != null ? chapter.getSeries() : null;
+        activityLogService.log(LogContext.builder()
+                .actionType(ActionType.UPDATE_PAGE_DEADLINE)
+                .detail("Cập nhật deadline trang " + req.getPageFrom() + "–" + req.getPageTo()
+                        + (chapter != null ? " | Ch." + chapter.getChapterNumber() : ""))
+                .entityType("PAGE_DEADLINE")
+                .entityId(deadlineId)
+                .seriesId(series != null ? series.getSeriesId() : null)
+                .chapterId(chapter != null ? chapter.getChapterId() : null)
+                .build());
+
+        return toDeadlineRes(saved);
     }
 
     @Transactional
@@ -168,6 +210,8 @@ public class ChapterService {
                     "Nhóm trang này đã được nộp hoặc duyệt rồi", HttpStatus.BAD_REQUEST);
         }
 
+        boolean isResubmit = "revision".equals(currentStatus);
+
         deadline.setStatus("submitted");
         deadline.setSubmittedAt(LocalDateTime.now());
         deadline.setReviewedAt(null);
@@ -187,6 +231,19 @@ public class ChapterService {
                     });
         }
 
+        Series series = chapter.getSeries();
+        activityLogService.log(LogContext.builder()
+                .actionType(isResubmit ? ActionType.RESUBMIT_PAGES : ActionType.SUBMIT_PAGES)
+                .detail((isResubmit ? "Nộp lại" : "Nộp") + " nhóm trang "
+                        + deadline.getPageFrom() + "–" + deadline.getPageTo()
+                        + " | Ch." + chapter.getChapterNumber()
+                        + " – " + (series != null ? series.getTitle() : ""))
+                .entityType("PAGE_DEADLINE")
+                .entityId(deadlineId)
+                .seriesId(series != null ? series.getSeriesId() : null)
+                .chapterId(chapter.getChapterId())
+                .build());
+
         return toDeadlineRes(deadline);
     }
 
@@ -202,6 +259,7 @@ public class ChapterService {
                     HttpStatus.BAD_REQUEST);
         }
 
+        boolean approved = "approved".equals(req.getDecision());
         deadline.setStatus(req.getDecision());
         deadline.setReviewedAt(LocalDateTime.now());
         deadline.setReviewNote(req.getNote());
@@ -215,11 +273,20 @@ public class ChapterService {
                         chapter.setChapterStatus(s);
                         chapterRepository.save(chapter);
                     });
-        } else {
-            long total = deadlineRepository.countByChapterChapterId(chapter.getChapterId());
-            long approved = deadlineRepository.countByChapterChapterIdAndStatus(
-                    chapter.getChapterId(), "approved");
         }
+
+        Series series = chapter != null ? chapter.getSeries() : null;
+        activityLogService.log(LogContext.builder()
+                .actionType(approved ? ActionType.REVIEW_APPROVED : ActionType.REVIEW_REVISION)
+                .detail((approved ? "Duyệt" : "Yêu cầu chỉnh sửa") + " nhóm trang "
+                        + deadline.getPageFrom() + "–" + deadline.getPageTo()
+                        + (chapter != null ? " | Ch." + chapter.getChapterNumber() : "")
+                        + (series != null ? " – " + series.getTitle() : ""))
+                .entityType("PAGE_DEADLINE")
+                .entityId(deadlineId)
+                .seriesId(series != null ? series.getSeriesId() : null)
+                .chapterId(chapter != null ? chapter.getChapterId() : null)
+                .build());
 
         return toDeadlineRes(deadline);
     }
@@ -271,6 +338,19 @@ public class ChapterService {
 
         chapter.setChapterStatus(pendingPublish);
         chapterRepository.save(chapter);
+
+        Series series = chapter.getSeries();
+        activityLogService.log(LogContext.builder()
+                .actionType(ActionType.SUBMIT_CHAPTER_TO_ADMIN)
+                .detail("Gửi Ch." + chapter.getChapterNumber()
+                        + (chapter.getTitle() != null ? " – " + chapter.getTitle() : "")
+                        + " lên Admin duyệt"
+                        + (series != null ? " | " + series.getTitle() : ""))
+                .entityType("CHAPTER")
+                .entityId(chapterId)
+                .seriesId(series != null ? series.getSeriesId() : null)
+                .chapterId(chapterId)
+                .build());
 
         return toResWithSeries(chapter);
     }
@@ -332,6 +412,7 @@ public class ChapterService {
 
     private User getCurrentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        assert auth != null;
         return userRepository.findByEmail(auth.getName())
                 .orElseThrow(() -> new CustomAppException(
                         "User not found", HttpStatus.NOT_FOUND));
