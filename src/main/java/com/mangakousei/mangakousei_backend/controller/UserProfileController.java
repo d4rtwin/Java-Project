@@ -51,17 +51,17 @@ public class UserProfileController {
         UserStatsRes stats = userProfileService.getUserStats(userId);
         return ResponseEntity.ok(ApiResponse.success("User stats fetched successfully", stats));
     }
-    @PostMapping("/me/avatar")
-    public ResponseEntity<ApiResponse<Map<String, String>>> uploadAvatar(
-            @RequestParam("file") MultipartFile file) {
-        if (file.isEmpty()) {
-            throw new CustomAppException("File cannot be blank", HttpStatus.BAD_REQUEST);
-        }
-        String avatarUrl = userProfileService.updateAvatar(file);
-        return ResponseEntity.ok(ApiResponse.success("Avatar upload successfullt", Map.of("avatarUrl", avatarUrl)));
-    }
-    @GetMapping("/{userId}/full-profile")
-        public ResponseEntity<ApiResponse<UserFullProfileRes>> getUserFullProfile(@PathVariable Long userId) {
-        return ResponseEntity.ok(ApiResponse.success("Success", userProfileService.getUserFullProfile(userId)));
-    }
+//    @PostMapping("/me/avatar")
+//    public ResponseEntity<ApiResponse<Map<String, String>>> uploadAvatar(
+//            @RequestParam("file") MultipartFile file) {
+//        if (file.isEmpty()) {
+//            throw new CustomAppException("File cannot be blank", HttpStatus.BAD_REQUEST);
+//        }
+//        String avatarUrl = userProfileService.updateAvatar(file);
+//        return ResponseEntity.ok(ApiResponse.success("Avatar upload successfullt", Map.of("avatarUrl", avatarUrl)));
+//    }
+//    @GetMapping("/{userId}/full-profile")
+//    public ResponseEntity<ApiResponse<UserFullProfileRes>> getUserFullProfile(@PathVariable Long userId) {
+//        return ResponseEntity.ok(ApiResponse.success("Success", userProfileService.getUserFullProfile(userId)));
+//    }
 }

@@ -31,7 +31,7 @@ public class ActivityLogService {
     private final ActivityLogRepository logRepository;
     private final UserRepository        userRepository;
 
-    @Async
+    @Async("logExecutor")
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void log(LogContext ctx) {
         try {
@@ -57,7 +57,7 @@ public class ActivityLogService {
         }
     }
 
-    @Async
+    @Async("logExecutor")
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void log(Long userId, LogContext ctx) {
         try {

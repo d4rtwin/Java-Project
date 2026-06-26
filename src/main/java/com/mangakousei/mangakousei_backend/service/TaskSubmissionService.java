@@ -1,5 +1,6 @@
 package com.mangakousei.mangakousei_backend.service;
 
+import com.mangakousei.mangakousei_backend.dto.request.LogContext;
 import com.mangakousei.mangakousei_backend.dto.request.ReviewSubmissionReq;
 import com.mangakousei.mangakousei_backend.dto.request.SubmitTaskReq;
 import com.mangakousei.mangakousei_backend.dto.response.AssistantTaskRes;
@@ -7,6 +8,7 @@ import com.mangakousei.mangakousei_backend.dto.response.TaskSubmissionRes;
 import com.mangakousei.mangakousei_backend.entity.entity.*;
 import com.mangakousei.mangakousei_backend.entity.status.TaskStatus;
 import com.mangakousei.mangakousei_backend.entity.status.TaskSubmissionStatus;
+import com.mangakousei.mangakousei_backend.entity.type.ActionType;
 import com.mangakousei.mangakousei_backend.exception.CustomAppException;
 import com.mangakousei.mangakousei_backend.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +29,7 @@ public class TaskSubmissionService {
     private final TaskRepository taskRepository;
     private final TaskStatusRepository taskStatusRepository;
     private final UserRepository userRepository;
+    private final ActivityLogService activityLogService;
 
     public List<AssistantTaskRes> getMyTasks(Long assistantId, String statusFilter) {
         List<Task> tasks;
@@ -52,6 +55,10 @@ public class TaskSubmissionService {
                     "Bạn không được giao task này", HttpStatus.FORBIDDEN);
         }
 
+        boolean isResubmit = !submissionRepository
+                .findByTaskTaskIdOrderBySubmittedAtDesc(req.getTaskId())
+                .isEmpty();
+
         TaskSubmissionStatus pendingStatus = submissionStatusRepository
                 .findByTaskSubmissionStatusName("pending")
                 .orElseThrow(() -> new CustomAppException(
@@ -73,6 +80,24 @@ public class TaskSubmissionService {
                     task.setTaskStatus(reviewStatus);
                     taskRepository.save(task);
                 });
+
+        PageRegion region = task.getRegion();
+        Page page = region != null ? region.getPage() : null;
+        Chapter chapter = page != null ? page.getChapter() : null;
+        Series series = chapter != null ? chapter.getSeries() : null;
+
+        activityLogService.log(LogContext.builder()
+                .actionType(isResubmit ? ActionType.RESUBMIT_TASK : ActionType.SUBMIT_TASK)
+                .detail((isResubmit ? "Nộp lại" : "Nộp") + " task "
+                        + task.getTaskType().getTaskTypeName()
+                        + (page != null ? " – Trang " + page.getPageNumber() : "")
+                        + (chapter != null ? " Ch." + chapter.getChapterNumber() : "")
+                        + (series != null ? " | " + series.getTitle() : ""))
+                .entityType("TASK_SUBMISSION")
+                .entityId(saved.getTaskSubmissionId())
+                .seriesId(series != null ? series.getSeriesId() : null)
+                .chapterId(chapter != null ? chapter.getChapterId() : null)
+                .build());
 
         return toSubmissionRes(saved);
     }
@@ -136,6 +161,7 @@ public class TaskSubmissionService {
         }
 
         Task task = submission.getTask();
+        boolean approved = "approved".equals(req.getDecision());
 
         switch (req.getDecision()) {
             case "approved" -> {
@@ -177,7 +203,27 @@ public class TaskSubmissionService {
                     HttpStatus.BAD_REQUEST);
         }
 
-        return toSubmissionRes(submissionRepository.save(submission));
+        TaskSubmissionRes result = toSubmissionRes(submissionRepository.save(submission));
+
+        PageRegion region = task.getRegion();
+        Page page = region != null ? region.getPage() : null;
+        Chapter chapter = page != null ? page.getChapter() : null;
+        Series series = chapter != null ? chapter.getSeries() : null;
+
+        activityLogService.log(LogContext.builder()
+                .actionType(approved ? ActionType.REVIEW_APPROVED : ActionType.REVIEW_REVISION)
+                .detail((approved ? "Duyệt" : "Từ chối") + " submission task "
+                        + task.getTaskType().getTaskTypeName()
+                        + (page != null ? " – Trang " + page.getPageNumber() : "")
+                        + (chapter != null ? " Ch." + chapter.getChapterNumber() : "")
+                        + (series != null ? " | " + series.getTitle() : ""))
+                .entityType("TASK_SUBMISSION")
+                .entityId(submissionId)
+                .seriesId(series != null ? series.getSeriesId() : null)
+                .chapterId(chapter != null ? chapter.getChapterId() : null)
+                .build());
+
+        return result;
     }
 
     private TaskSubmissionRes toSubmissionRes(TaskSubmission s) {
