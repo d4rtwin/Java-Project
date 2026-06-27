@@ -1,10 +1,14 @@
 package com.mangakousei.mangakousei_backend.repository;
 
+import com.mangakousei.mangakousei_backend.entity.entity.Chapter;
 import com.mangakousei.mangakousei_backend.entity.entity.ChapterPageDeadline;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ChapterPageDeadlineRepository extends JpaRepository<ChapterPageDeadline, Long> {
@@ -12,4 +16,28 @@ public interface ChapterPageDeadlineRepository extends JpaRepository<ChapterPage
     boolean existsByChapterChapterIdAndStatus(Long chapterId, String status);
     long countByChapterChapterId(Long chapterId);
     long countByChapterChapterIdAndStatus(Long chapterId, String status);
+
+    @Query("""
+    SELECT d FROM ChapterPageDeadline d
+    JOIN d.chapter c
+    JOIN c.series s
+    WHERE s.editor.userId = :tantouId
+      AND d.status <> 'approved'
+      AND d.dueDate <= :endDate
+    ORDER BY d.dueDate ASC
+    """)
+    List<ChapterPageDeadline> findUpcomingByTantouId(
+            @Param("tantouId") Long tantouId,
+            @Param("endDate") java.time.LocalDate endDate);
+
+    @Query("""
+    SELECT COUNT(d) FROM ChapterPageDeadline d
+    WHERE d.chapter.chapterId = :chapterId
+      AND d.status <> 'approved'
+      AND d.dueDate < :today
+    """)
+    long countOverdueByChapterChapterId(
+            @Param("chapterId") Long chapterId,
+            @Param("today") java.time.LocalDate today);
+    
 }
