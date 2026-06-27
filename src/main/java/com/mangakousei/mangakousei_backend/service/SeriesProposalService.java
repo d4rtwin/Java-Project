@@ -172,19 +172,29 @@ public class SeriesProposalService {
                 .build());
 
         Long mangakaId = proposal.getMangaka().getUserId();
-      switch (request.getDecision()) {
-          case "approve" -> notificationService.send(mangakaId, "PROPOSAL",
-                  "🎉 Proposal được Tantou duyệt",
-                  "Proposal \"" + proposal.getWorkingTitle() + "\" đã được Tantou duyệt và gửi lên Admin.");
-          case "revision" -> notificationService.send(mangakaId, "PROPOSAL",
-                  "✏️ Proposal cần chỉnh sửa",
-                  "Tantou yêu cầu chỉnh sửa proposal \"" + proposal.getWorkingTitle()
-                  + "\": " + request.getFeedback());
-          case "reject" -> notificationService.send(mangakaId, "PROPOSAL",
-                  "❌ Proposal bị từ chối",
-                  "Tantou đã từ chối proposal \"" + proposal.getWorkingTitle()
-                  + "\". Lý do: " + request.getReason());
-      }
+        String title = proposal.getWorkingTitle();
+
+        switch (request.getDecision()) {
+            case "approve" -> {
+                notificationService.send(mangakaId, "PROPOSAL",
+                        "🎉 Proposal được Tantou duyệt",
+                        "Proposal \"" + title + "\" đã được Tantou duyệt và gửi lên Admin xét duyệt.");
+
+                userRepository.findAllByRoleName("ADMIN").forEach(admin ->
+                        notificationService.send(admin.getUserId(), "PROPOSAL",
+                                "📋 Proposal chờ Admin duyệt",
+                                currentUser.getFullName() + " vừa chuyển proposal \""
+                                        + title + "\" lên chờ Admin xét duyệt."));
+            }
+            case "revision" -> notificationService.send(mangakaId, "PROPOSAL",
+                    "✏️ Proposal cần chỉnh sửa",
+                    "Tantou yêu cầu chỉnh sửa proposal \"" + title
+                            + "\": " + request.getFeedback());
+            case "reject" -> notificationService.send(mangakaId, "PROPOSAL",
+                    "❌ Proposal bị từ chối",
+                    "Tantou đã từ chối proposal \"" + title
+                            + "\". Lý do: " + request.getReason());
+        }
     }
 
     @Transactional
@@ -247,7 +257,6 @@ public class SeriesProposalService {
                           "❌ Proposal bị Admin từ chối",
                           "Admin đã từ chối proposal \"" + proposal.getWorkingTitle()
                           + "\". Lý do: " + request.getReason());
-                  // Thông báo đến Tantou
                 if (proposal.getAssignedTantou() != null) {
                       notificationService.send(proposal.getAssignedTantou().getUserId(), "PROPOSAL",
                               "❌ Admin từ chối proposal",

@@ -245,6 +245,14 @@ public class ChapterService {
                 .chapterId(chapter.getChapterId())
                 .build());
 
+        if (series != null && series.getEditor() != null)
+            notificationService.send(series.getEditor().getUserId(), "REVIEW",
+                    isResubmit ? "🔄 Mangaka đã nộp lại trang" : "📥 Mangaka vừa nộp trang",
+                    (isResubmit ? "Mangaka đã nộp lại" : "Mangaka vừa nộp")
+                            + " nhóm trang " + deadline.getPageFrom() + "–" + deadline.getPageTo()
+                            + " | Ch." + chapter.getChapterNumber()
+                            + " – " + series.getTitle() + ". Hãy xem xét!");
+
         return toDeadlineRes(deadline);
     }
 
