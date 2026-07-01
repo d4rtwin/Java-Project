@@ -12,6 +12,7 @@ import com.mangakousei.mangakousei_backend.util.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -28,6 +29,8 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final NotificationTypeRepository notificationTypeRepository;
     private final UserRepository userRepository;
+
+    private final SimpMessagingTemplate messagingTemplate;
 
     @Async("logExecutor")
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -51,8 +54,23 @@ public class NotificationService {
                     .build();
 
             notificationRepository.save(notif);
+
+            pushRealtime(user.getEmail(), toRes(notif));
+
         } catch (Exception e) {
             log.warn("[Notification] Gửi thông báo thất bại (userId={}): {}", recipientId, e.getMessage());
+        }
+    }
+
+    private void pushRealtime(String userEmail, NotificationRes payload) {
+        try {
+            messagingTemplate.convertAndSendToUser(
+                    userEmail,
+                    "/queue/notifications",
+                    payload
+            );
+        } catch (Exception e) {
+            log.warn("[Notification][Realtime] Push thất bại cho {}: {}", userEmail, e.getMessage());
         }
     }
 

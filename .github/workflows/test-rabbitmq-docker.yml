@@ -1,0 +1,80 @@
+name: Test RabbitMQ Docker Compose
+
+on:
+  push:
+    paths:
+      - "docker-compose.rabbitmq.yml"
+      - ".github/workflows/test-rabbitmq-docker.yml"
+  pull_request:
+    paths:
+      - "docker-compose.rabbitmq.yml"
+      - ".github/workflows/test-rabbitmq-docker.yml"
+  workflow_dispatch:
+
+jobs:
+  test-rabbitmq-stomp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate docker-compose syntax
+        run: docker compose -f docker-compose.rabbitmq.yml config --quiet
+
+      - name: Start RabbitMQ
+        run: docker compose -f docker-compose.rabbitmq.yml up -d
+
+      - name: Wait for RabbitMQ healthy
+        run: |
+          echo "Đang chờ container healthy..."
+          for i in $(seq 1 30); do
+            status=$(docker inspect -f '{{.State.Health.Status}}' mangakousei-rabbitmq 2>/dev/null || echo "starting")
+            echo "  [$i/30] status=$status"
+            if [ "$status" = "healthy" ]; then
+              echo "RabbitMQ đã healthy."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::RabbitMQ không healthy sau 60s"
+          exit 1
+
+      - name: Verify STOMP plugin enabled
+        run: |
+          docker exec mangakousei-rabbitmq rabbitmq-plugins list -e | grep -q rabbitmq_stomp \
+            && echo "✅ Plugin rabbitmq_stomp đã bật" \
+            || (echo "::error::Plugin rabbitmq_stomp KHÔNG được bật" && exit 1)
+
+      - name: Verify STOMP handshake on port 61613
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq netcat-openbsd
+
+          response=$(printf 'CONNECT\naccept-version:1.2\nhost:/\n\n\x00' \
+            | timeout 5 nc localhost 61613 || true)
+
+          echo "--- Raw response ---"
+          echo "$response"
+          echo "--------------------"
+
+          if echo "$response" | grep -q "CONNECTED"; then
+            echo "✅ STOMP handshake thành công"
+          else
+            echo "::error::Không nhận được frame CONNECTED từ RabbitMQ STOMP"
+            exit 1
+          fi
+
+      - name: Verify Management API
+        run: |
+          curl -sf -u guest:guest http://localhost:15672/api/overview > /dev/null \
+            && echo "✅ Management API phản hồi OK" \
+            || (echo "::error::Management API không phản hồi" && exit 1)
+
+      - name: Show container logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.rabbitmq.yml logs
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.rabbitmq.yml down -v
