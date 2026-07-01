@@ -1,6 +1,6 @@
 package com.mangakousei.mangakousei_backend.dto.request;
 
-import jakarta.validation.constraints.Future;
+import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.Data;
@@ -14,7 +14,7 @@ public class SetPageDeadlineReq {
     @NotNull @Positive
     private Integer pageTo;
 
-    @NotNull @Future
+    @NotNull @FutureOrPresent
     private LocalDate dueDate;
 }
  
