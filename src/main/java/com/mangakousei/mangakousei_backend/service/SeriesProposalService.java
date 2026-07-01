@@ -247,7 +247,6 @@ public class SeriesProposalService {
                 proposal.setUpdatedAt(LocalDateTime.now());
                 proposalRepository.save(proposal);
 
-                // Ghi log hành động yêu cầu sửa
                 activityLogService.log(LogContext.builder()
                         .actionType(ActionType.APPROVE_SERIES) 
                         .detail("Admin yêu cầu sửa proposal \"" + proposal.getWorkingTitle() + "\"")
@@ -255,13 +254,11 @@ public class SeriesProposalService {
                         .entityId(proposalId)
                         .build());
 
-                // Gửi thông báo cho Mangaka
                 notificationService.send(proposal.getMangaka().getUserId(), "PROPOSAL",
                           "✏️ Proposal cần chỉnh sửa (từ Admin)",
                           "Admin yêu cầu chỉnh sửa proposal \"" + proposal.getWorkingTitle()
                           + "\". Phản hồi: " + request.getFeedback());
                 
-                // Gửi thông báo cho Tantou quản lý
                 if (proposal.getAssignedTantou() != null) {
                       notificationService.send(proposal.getAssignedTantou().getUserId(), "PROPOSAL",
                               "✏️ Admin yêu cầu sửa proposal",
