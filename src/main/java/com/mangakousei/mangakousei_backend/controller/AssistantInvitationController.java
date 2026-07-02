@@ -51,4 +51,15 @@ public class AssistantInvitationController {
                 assistantService.respondToInvitation(assignmentId, req, assistantId);
         return ResponseEntity.ok(ApiResponse.success("Đã phản hồi lời mời", result));
     }
+
+    @GetMapping("/active")
+    public ResponseEntity<?> getMyActiveCollaborations() {
+        if (!SecurityUtils.isAssistant()) {
+            throw new CustomAppException("Không có quyền", HttpStatus.FORBIDDEN);
+        }
+        Long assistantId = SecurityUtils.getCurrentUserId();
+        List<AssistantAssignmentRes> result =
+                assistantService.getMyActiveCollaborations(assistantId);
+        return ResponseEntity.ok(ApiResponse.success("Active collaborations", result));
+    }
 }

@@ -129,6 +129,14 @@ public class MangakaAssistantService {
                 .collect(Collectors.toList());
     }
 
+    public List<AssistantAssignmentRes> getMyActiveCollaborations(Long assistantId) {
+        return assignmentRepository
+                .findByAssistantUserIdAndStatus(assistantId, "active")
+                .stream()
+                .map(this::toRes)
+                .collect(Collectors.toList());
+    }
+
     public long countPendingInvitations(Long assistantId) {
         return assignmentRepository.countByAssistantUserIdAndStatus(assistantId, "pending");
     }
