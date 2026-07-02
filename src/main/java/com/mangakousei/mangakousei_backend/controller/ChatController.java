@@ -3,6 +3,8 @@ package com.mangakousei.mangakousei_backend.controller;
 import com.mangakousei.mangakousei_backend.dto.request.SendMessageReq;
 import com.mangakousei.mangakousei_backend.dto.response.ApiResponse;
 import com.mangakousei.mangakousei_backend.dto.response.ChatMessageRes;
+import com.mangakousei.mangakousei_backend.dto.response.ConversationRes;
+import com.mangakousei.mangakousei_backend.exception.CustomAppException;
 import com.mangakousei.mangakousei_backend.service.ChatService;
 import com.mangakousei.mangakousei_backend.util.SecurityUtils;
 
@@ -12,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -56,5 +59,28 @@ public class ChatController {
         Long userId = SecurityUtils.getCurrentUserId();
         chatService.markConversationRead(conversationId, userId);
         return ResponseEntity.ok(ApiResponse.success("Marked as read", null));
+    }
+
+    @GetMapping("/admins")
+    public ResponseEntity<?> getAvailableAdmins() {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Fetched admins", chatService.getAvailableAdmins()));
+    }
+
+    @PostMapping("/conversations/start/{adminId}")
+    public ResponseEntity<?> startConversationWithAdmin(@PathVariable Long adminId) {
+        Long userId = SecurityUtils.getCurrentUserId();
+        ConversationRes conv = chatService.startConversationWithAdmin(userId, adminId);
+        return ResponseEntity.ok(ApiResponse.success("Conversation started", conv));
+    }
+
+    @PostMapping("/backfill")
+    public ResponseEntity<?> backfillConversations() {
+        if (!SecurityUtils.isAdmin()) {
+            throw new CustomAppException("Chỉ Admin được chạy backfill", HttpStatus.FORBIDDEN);
+        }
+        int created = chatService.backfillConversationsForExistingAssignments();
+        return ResponseEntity.ok(ApiResponse.success(
+                "Đã backfill xong", "Tạo mới " + created + " conversation"));
     }
 }

@@ -1,10 +1,10 @@
 package com.mangakousei.mangakousei_backend.service;
 
+import com.mangakousei.mangakousei_backend.dto.response.AdminContactRes;
 import com.mangakousei.mangakousei_backend.dto.response.ChatMessageRes;
 import com.mangakousei.mangakousei_backend.dto.response.ConversationRes;
 import com.mangakousei.mangakousei_backend.entity.entity.ChatMessage;
 import com.mangakousei.mangakousei_backend.entity.entity.Conversation;
-import com.mangakousei.mangakousei_backend.entity.entity.MangakaAssistantAssignment;
 import com.mangakousei.mangakousei_backend.entity.entity.User;
 import com.mangakousei.mangakousei_backend.exception.CustomAppException;
 import com.mangakousei.mangakousei_backend.repository.ChatMessageRepository;
@@ -31,12 +31,12 @@ public class ChatService {
 
     private static final int PREVIEW_MAX_LEN = 80;
     private static final String ASSISTANT_ACTIVE_STATUS = "active";
+    private static final String ADMIN_ROLE = "ADMIN";
 
     private final ConversationRepository conversationRepository;
     private final ChatMessageRepository messageRepository;
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
-
     private final TantouMangakaAssignmentRepository tantouMangakaAssignmentRepository;
     private final MangakaAssistantAssignmentRepository mangakaAssistantAssignmentRepository;
 
@@ -70,6 +70,56 @@ public class ChatService {
                             saved.getConversationId(), a.getEmail(), b.getEmail());
                     return saved;
                 });
+    }
+
+    @Transactional
+    public ConversationRes startConversationWithAdmin(Long currentUserId, Long adminId) {
+        User admin = userRepository.findById(adminId)
+                .orElseThrow(() -> new CustomAppException("Không tìm thấy Admin", HttpStatus.NOT_FOUND));
+
+        boolean isAdmin = admin.getRoles().stream()
+                .anyMatch(r -> ADMIN_ROLE.equals(r.getRoleName()));
+        if (!isAdmin) {
+            throw new CustomAppException(
+                    "Chỉ có thể chủ động bắt đầu trò chuyện với Admin", HttpStatus.FORBIDDEN);
+        }
+
+        Conversation conv = getOrCreateConversation(currentUserId, adminId);
+        return toConversationRes(conv, currentUserId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AdminContactRes> getAvailableAdmins() {
+        return userRepository.findAllByRoleName(ADMIN_ROLE)
+                .stream()
+                .map(u -> AdminContactRes.builder()
+                        .userId(u.getUserId())
+                        .fullName(u.getFullName())
+                        .avatarUrl(u.getAvatarUrl())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public int backfillConversationsForExistingAssignments() {
+        int created = 0;
+
+        for (var a : tantouMangakaAssignmentRepository.findAll()) {
+            if (!Boolean.TRUE.equals(a.getIsActive())) continue;
+            long before = conversationRepository.count();
+            getOrCreateConversation(a.getTantou().getUserId(), a.getMangaka().getUserId());
+            if (conversationRepository.count() > before) created++;
+        }
+
+        for (var a : mangakaAssistantAssignmentRepository.findAll()) {
+            if (!ASSISTANT_ACTIVE_STATUS.equals(a.getStatus())) continue;
+            long before = conversationRepository.count();
+            getOrCreateConversation(a.getMangaka().getUserId(), a.getAssistant().getUserId());
+            if (conversationRepository.count() > before) created++;
+        }
+
+        log.info("[Chat] Backfill xong -- tạo mới {} conversation", created);
+        return created;
     }
 
     @Transactional(readOnly = true)
@@ -147,6 +197,10 @@ public class ChatService {
     }
 
     private boolean isRelationshipActive(User u1, User u2) {
+        if (hasRole(u1, ADMIN_ROLE) || hasRole(u2, ADMIN_ROLE)) {
+            return true;
+        }
+
         Long id1 = u1.getUserId();
         Long id2 = u2.getUserId();
 
@@ -171,6 +225,10 @@ public class ChatService {
                         .orElse(false);
 
         return mangakaAssistantActive;
+    }
+
+    private boolean hasRole(User user, String roleName) {
+        return user.getRoles().stream().anyMatch(r -> roleName.equals(r.getRoleName()));
     }
 
     private void pushRealtime(String userEmail, ChatMessageRes payload) {
@@ -199,7 +257,7 @@ public class ChatService {
                 .otherUserId(other.getUserId())
                 .otherUserName(other.getFullName())
                 .otherUserAvatarUrl(other.getAvatarUrl())
-                .otherUserRole(other.getRoles().isEmpty() ? null : other.getRoles().getFirst().getRoleName())
+                .otherUserRole(other.getRoles().isEmpty() ? null : other.getRoles().iterator().next().getRoleName())
                 .lastMessagePreview(c.getLastMessagePreview())
                 .lastMessageAt(c.getLastMessageAt())
                 .unreadCount(unread)
