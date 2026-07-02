@@ -220,11 +220,13 @@ public class ChapterService {
         deadlineRepository.save(deadline);
 
         Chapter chapter = deadline.getChapter();
-        long total = deadlineRepository.countByChapterChapterId(chapter.getChapterId());
-        long submitted = deadlineRepository.countByChapterChapterIdAndStatus(
-                chapter.getChapterId(), "submitted");
+        List<ChapterPageDeadline> chapterDeadlines = deadlineRepository
+                .findByChapterChapterIdOrderByPageFrom(chapter.getChapterId());
+        boolean allReadyForReview = !chapterDeadlines.isEmpty()
+                && chapterDeadlines.stream().allMatch(d ->
+                        "submitted".equals(d.getStatus()) || "approved".equals(d.getStatus()));
 
-        if (total > 0 && total == submitted) {
+        if (allReadyForReview) {
             chapterStatusRepository.findByChapterStatusName("pages_submitted")
                     .ifPresent(status -> {
                         chapter.setChapterStatus(status);
@@ -401,6 +403,9 @@ public class ChapterService {
         long submitted = deadlines.stream()
                 .filter(d -> "submitted".equals(d.getStatus()))
                 .count();
+        long completed = deadlines.stream()
+                .filter(d -> "submitted".equals(d.getStatus()) || "approved".equals(d.getStatus()))
+                .count();
 
         return ChapterRes.builder()
                 .chapterId(c.getChapterId())
@@ -413,6 +418,7 @@ public class ChapterService {
                 .pageDeadlines(deadlines)
                 .totalDeadlines(total)
                 .submittedDeadlines(submitted)
+                .completedDeadlines(completed)
                 .adminNote(c.getAdminNote())
                 .build();
     }
