@@ -44,6 +44,16 @@ public class UserProfileService {
             user.setAvatarUrl(avatarUrl.isEmpty() ? null : avatarUrl);
         }
 
+        if (request.getPhone() != null) {
+            String phone = request.getPhone().trim();
+            user.setPhone(phone.isEmpty() ? null : phone);
+        }
+
+        if (request.getBio() != null) {
+            String bio = request.getBio().trim();
+            user.setBio(bio.isEmpty() ? null : bio);
+        }
+
         UserInfoRes result = userMapper.toDto(userRepository.save(user));
 
         activityLogService.log(LogContext.builder()
@@ -65,6 +75,7 @@ public class UserProfileService {
         }
 
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        user.setPasswordChangedAt(java.time.LocalDateTime.now());
         userRepository.save(user);
 
         activityLogService.log(LogContext.builder()

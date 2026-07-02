@@ -20,16 +20,21 @@ public class UserMapper {
         if (user == null) return null;
         
         return UserInfoRes.builder()
-            .id(user.getUserId())
-            .fullName(user.getFullName())
-            .email(user.getEmail())
-            .avatarUrl(user.getAvatarUrl())
-            .roles(user.getRoles().stream()
-                .map(r -> r.getRoleName())
-                .collect(Collectors.toList())) 
-            .editedSeries((long) user.getEditedSeries().size())
-            .createdSeries((long) user.getCreatedSeries().size())
-            .build();
+                .id(user.getUserId())
+                .fullName(user.getFullName())
+                .email(user.getEmail())
+                .avatarUrl(user.getAvatarUrl())
+                .phone(user.getPhone())
+                .bio(user.getBio())
+                .roles(user.getRoles().stream()
+                    .map(Role::getRoleName)
+                    .collect(Collectors.toList()))
+                .editedSeries((long) user.getEditedSeries().size())
+                .createdSeries((long) user.getCreatedSeries().size())
+                .createdAt(user.getCreatedAt())
+                .passwordChangedAt(user.getPasswordChangedAt() != null
+                        ? user.getPasswordChangedAt() : user.getCreatedAt())
+                .build();
     }
 
     public UserFullProfileRes toFullProfileDto(User user) {
