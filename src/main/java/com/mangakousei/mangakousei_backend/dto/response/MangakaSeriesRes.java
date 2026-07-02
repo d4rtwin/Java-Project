@@ -25,4 +25,7 @@ public class MangakaSeriesRes {
 
     private String scheduleType;
     private Integer dayValue;
+
+    private long totalPageDeadlines;
+    private long submittedPageDeadlines;
 }

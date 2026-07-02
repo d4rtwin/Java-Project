@@ -2,13 +2,12 @@ package com.mangakousei.mangakousei_backend.service;
 
 import com.mangakousei.mangakousei_backend.dto.request.UpdateSeriesReq;
 import com.mangakousei.mangakousei_backend.dto.response.MangakaSeriesRes;
+import com.mangakousei.mangakousei_backend.entity.entity.Chapter;
 import com.mangakousei.mangakousei_backend.entity.entity.Genre;
 import com.mangakousei.mangakousei_backend.entity.entity.PublicationSchedule;
 import com.mangakousei.mangakousei_backend.entity.entity.Series;
 import com.mangakousei.mangakousei_backend.exception.CustomAppException;
-import com.mangakousei.mangakousei_backend.repository.GenreRepository;
-import com.mangakousei.mangakousei_backend.repository.PublicationScheduleRepository;
-import com.mangakousei.mangakousei_backend.repository.SeriesRepository;
+import com.mangakousei.mangakousei_backend.repository.*;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -26,6 +25,8 @@ public class MangakaSeriesService {
     private final SeriesRepository seriesRepository;
     private final PublicationScheduleRepository scheduleRepository;
     private final GenreRepository genreRepository;
+    private final ChapterRepository chapterRepository;
+    private final ChapterPageDeadlineRepository deadlineRepository;
 
     private static final DateTimeFormatter DATE_FMT =
             DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -42,6 +43,20 @@ public class MangakaSeriesService {
     private MangakaSeriesRes toRes(Series s) {
         Optional<PublicationSchedule> schedule =
                 scheduleRepository.findBySeriesSeriesId(s.getSeriesId());
+
+        List<Long> chapterIds = chapterRepository
+                .findBySeriesSeriesIdOrderByChapterNumberAsc(s.getSeriesId())
+                .stream()
+                .map(Chapter::getChapterId)
+                .toList();
+
+        long totalDeadlines = chapterIds.stream()
+                .mapToLong(deadlineRepository::countByChapterChapterId)
+                .sum();
+
+        long submittedDeadlines = chapterIds.stream()
+                .mapToLong(cid -> deadlineRepository.countByChapterChapterIdAndStatus(cid, "submitted"))
+                .sum();
 
         return MangakaSeriesRes.builder()
                 .seriesId(s.getSeriesId())
@@ -65,6 +80,8 @@ public class MangakaSeriesService {
                         ? s.getApprovedAt().format(DATE_FMT) : null)
                 .scheduleType(schedule.map(PublicationSchedule::getScheduleType).orElse(null))
                 .dayValue(schedule.map(PublicationSchedule::getDayValue).orElse(null))
+                .totalPageDeadlines(totalDeadlines)
+                .submittedPageDeadlines(submittedDeadlines)
                 .build();
     }
 
