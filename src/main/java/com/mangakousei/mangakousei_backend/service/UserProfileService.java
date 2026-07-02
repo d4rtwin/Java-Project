@@ -65,6 +65,7 @@ public class UserProfileService {
         }
 
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        user.setPasswordChangedAt(java.time.LocalDateTime.now());
         userRepository.save(user);
 
         activityLogService.log(LogContext.builder()
