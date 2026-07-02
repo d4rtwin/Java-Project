@@ -37,5 +37,29 @@ public interface ChapterPageDeadlineRepository extends JpaRepository<ChapterPage
     long countOverdueByChapterChapterId(
             @Param("chapterId") Long chapterId,
             @Param("today") java.time.LocalDate today);
-    
+
+    @Query("""
+    SELECT d FROM ChapterPageDeadline d
+    JOIN d.chapter c
+    JOIN c.series s
+    WHERE s.creator.userId = :mangakaId
+      AND d.status <> 'approved'
+      AND d.dueDate <= :endDate
+    ORDER BY d.dueDate ASC
+    """)
+    List<ChapterPageDeadline> findUpcomingByMangakaId(
+            @Param("mangakaId") Long mangakaId,
+            @Param("endDate") java.time.LocalDate endDate);
+
+    @Query("""
+    SELECT COUNT(d) FROM ChapterPageDeadline d
+    JOIN d.chapter c
+    JOIN c.series s
+    WHERE s.creator.userId = :mangakaId
+      AND d.status = :status
+    """)
+    long countByMangakaIdAndStatus(
+            @Param("mangakaId") Long mangakaId,
+            @Param("status") String status);
+
 }
