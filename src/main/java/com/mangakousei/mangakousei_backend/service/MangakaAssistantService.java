@@ -10,7 +10,9 @@ import com.mangakousei.mangakousei_backend.exception.CustomAppException;
 import com.mangakousei.mangakousei_backend.repository.MangakaAssistantAssignmentRepository;
 import com.mangakousei.mangakousei_backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -21,6 +23,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class MangakaAssistantService {
@@ -28,6 +31,8 @@ public class MangakaAssistantService {
     private final MangakaAssistantAssignmentRepository assignmentRepository;
     private final UserRepository userRepository;
     private final ChatService chatService;
+    private final NotificationService notificationService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     public List<AssistantSearchRes> searchAssistants(String keyword, Long mangakaId) {
         List<User> assistants = userRepository
@@ -82,7 +87,14 @@ public class MangakaAssistantService {
                 .status("pending")
                 .build();
 
-        return toRes(assignmentRepository.save(assignment));
+        notificationService.send(assistant.getUserId(), "SYSTEM",
+                "📨 Lời mời cộng tác mới",
+                mangaka.getFullName() + " đã mời bạn tham gia nhóm sản xuất.");
+
+        AssistantAssignmentRes res = toRes(assignmentRepository.save(assignment));
+        pushAssignmentUpdate(assignment.getAssistant().getEmail(), res);
+
+        return res;
     }
 
     public List<AssistantAssignmentRes> getActiveAssistants(Long mangakaId) {
@@ -166,15 +178,38 @@ public class MangakaAssistantService {
                         assignment.getMangaka().getUserId(),
                         assignment.getAssistant().getUserId()
                 );
+                notificationService.send(assignment.getMangaka().getUserId(), "SYSTEM",
+                        "✅ Lời mời được chấp nhận",
+                        assignment.getAssistant().getFullName() + " đã chấp nhận lời mời cộng tác.");
             }
-            case "reject" -> assignment.setStatus("rejected");
+            case "reject" -> {
+                assignment.setStatus("rejected");
+                notificationService.send(assignment.getMangaka().getUserId(), "SYSTEM",
+                        "❌ Lời mời bị từ chối",
+                        assignment.getAssistant().getFullName() + " đã từ chối lời mời cộng tác.");
+            }
             default -> throw new CustomAppException(
                     "Decision không hợp lệ: chỉ chấp nhận 'accept' hoặc 'reject'",
                     HttpStatus.BAD_REQUEST);
+
+
         }
 
         assignment.setRespondedAt(LocalDateTime.now());
-        return toRes(assignmentRepository.save(assignment));
+        AssistantAssignmentRes res = toRes(assignmentRepository.save(assignment));
+
+        pushAssignmentUpdate(assignment.getMangaka().getEmail(), res);
+        pushAssignmentUpdate(assignment.getAssistant().getEmail(), res);
+
+        return res;
+    }
+
+    private void pushAssignmentUpdate(String userEmail, AssistantAssignmentRes payload) {
+        try {
+            messagingTemplate.convertAndSendToUser(userEmail, "/queue/assignment-updates", payload);
+        } catch (Exception e) {
+            log.warn("[Assignment][Realtime] Push thất bại cho {}: {}", userEmail, e.getMessage());
+        }
     }
 
     private User getUserById(Long id) {
