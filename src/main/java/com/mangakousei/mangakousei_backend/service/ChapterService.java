@@ -1,5 +1,6 @@
 package com.mangakousei.mangakousei_backend.service;
 
+import com.mangakousei.mangakousei_backend.constant.RealtimeQueues;
 import com.mangakousei.mangakousei_backend.dto.request.CreateChapterReq;
 import com.mangakousei.mangakousei_backend.dto.request.LogContext;
 import com.mangakousei.mangakousei_backend.dto.request.ReviewPageGroupReq;
@@ -33,6 +34,7 @@ public class ChapterService {
     private final UserRepository userRepository;
     private final ActivityLogService activityLogService;
     private final NotificationService notificationService;
+    private final RealtimePushService realtimePushService;
 
     public List<ChapterRes> getChaptersBySeries(Long seriesId) {
         return chapterRepository
@@ -98,6 +100,19 @@ public class ChapterService {
                 .chapterId(saved.getChapterId())
                 .build());
 
+        if (series.getEditor() != null) {
+            notificationService.send(series.getEditor().getUserId(), "SYSTEM",
+                    "📖 Chapter mới được tạo",
+                    mangaka.getFullName() + " vừa tạo Ch." + saved.getChapterNumber()
+                            + " trong series " + series.getTitle() + ". Hãy set deadline cho nhóm trang.");
+
+            realtimePushService.pushToUser(
+                    series.getEditor().getEmail(),
+                    RealtimeQueues.CHAPTER_UPDATES,
+                    toResWithSeries(saved)
+            );
+        }
+
         return toRes(saved);
     }
 
@@ -144,6 +159,19 @@ public class ChapterService {
                 .seriesId(series != null ? series.getSeriesId() : null)
                 .chapterId(chapter.getChapterId())
                 .build());
+
+        if (series != null && series.getCreator() != null) {
+            notificationService.send(series.getCreator().getUserId(), "SYSTEM",
+                    "📅 Deadline mới được set",
+                    "Tantou vừa set deadline cho nhóm trang " + req.getPageFrom() + "–" + req.getPageTo()
+                            + " | Ch." + chapter.getChapterNumber() + " – " + series.getTitle());
+
+            realtimePushService.pushToUser(
+                    series.getCreator().getEmail(),
+                    RealtimeQueues.CHAPTER_UPDATES,
+                    toResWithSeries(chapter)
+            );
+        }
 
         return toDeadlineRes(saved);
     }
@@ -247,13 +275,28 @@ public class ChapterService {
                 .chapterId(chapter.getChapterId())
                 .build());
 
-        if (series != null && series.getEditor() != null)
+        if (series != null && series.getEditor() != null) {
             notificationService.send(series.getEditor().getUserId(), "REVIEW",
                     isResubmit ? "🔄 Mangaka đã nộp lại trang" : "📥 Mangaka vừa nộp trang",
                     (isResubmit ? "Mangaka đã nộp lại" : "Mangaka vừa nộp")
                             + " nhóm trang " + deadline.getPageFrom() + "–" + deadline.getPageTo()
                             + " | Ch." + chapter.getChapterNumber()
                             + " – " + series.getTitle() + ". Hãy xem xét!");
+
+            realtimePushService.pushToUser(
+                    series.getEditor().getEmail(),
+                    RealtimeQueues.PAGE_DEADLINE_UPDATES,
+                    toDeadlineRes(deadline)
+            );
+        }
+
+        ChapterRes freshChapter = toResWithSeries(chapter);
+        if (series != null && series.getEditor() != null) {
+            realtimePushService.pushToUser(series.getEditor().getEmail(), RealtimeQueues.CHAPTER_UPDATES, freshChapter);
+        }
+        if (series != null && series.getCreator() != null) {
+            realtimePushService.pushToUser(series.getCreator().getEmail(), RealtimeQueues.CHAPTER_UPDATES, freshChapter);
+        }
 
         return toDeadlineRes(deadline);
     }
@@ -301,20 +344,37 @@ public class ChapterService {
 
         assert chapter != null;
         if (chapter.getSeries() != null && chapter.getSeries().getCreator() != null) {
-          Long mangakaId = chapter.getSeries().getCreator().getUserId();
-          String seriesTitle = chapter.getSeries().getTitle();
-          if (approved) {
-              notificationService.send(mangakaId, "REVIEW",
-                  "✅ Nhóm trang được duyệt",
-                  "Tantou đã duyệt nhóm trang " + deadline.getPageFrom() + "–" + deadline.getPageTo()
-                  + " trong Ch." + chapter.getChapterNumber() + " – " + seriesTitle);
-          } else {
-              notificationService.send(mangakaId, "REVIEW",
-                  "✏️ Yêu cầu chỉnh sửa trang",
-                  "Tantou yêu cầu chỉnh sửa nhóm trang " + deadline.getPageFrom() + "–" + deadline.getPageTo()
-                  + " trong Ch." + chapter.getChapterNumber() + " – " + seriesTitle);
-          }
-      }
+              Long mangakaId = chapter.getSeries().getCreator().getUserId();
+              String mangakaEmail = chapter.getSeries().getCreator().getEmail();
+              String seriesTitle = chapter.getSeries().getTitle();
+
+              if (approved) {
+                  notificationService.send(mangakaId, "REVIEW",
+                      "✅ Nhóm trang được duyệt",
+                      "Tantou đã duyệt nhóm trang " + deadline.getPageFrom() + "–" + deadline.getPageTo()
+                      + " trong Ch." + chapter.getChapterNumber() + " – " + seriesTitle);
+              } else {
+                  notificationService.send(mangakaId, "REVIEW",
+                      "✏️ Yêu cầu chỉnh sửa trang",
+                      "Tantou yêu cầu chỉnh sửa nhóm trang " + deadline.getPageFrom() + "–" + deadline.getPageTo()
+                      + " trong Ch." + chapter.getChapterNumber() + " – " + seriesTitle);
+              }
+
+              realtimePushService.pushToUser(
+                    mangakaEmail,
+                    RealtimeQueues.PAGE_DEADLINE_UPDATES,
+                    toDeadlineRes(deadline)
+              );
+        }
+
+        ChapterRes freshChapter = toResWithSeries(chapter);
+
+        if (series != null && series.getEditor() != null) {
+            realtimePushService.pushToUser(series.getEditor().getEmail(), RealtimeQueues.CHAPTER_UPDATES, freshChapter);
+        }
+        if (series != null && series.getCreator() != null) {
+            realtimePushService.pushToUser(series.getCreator().getEmail(), RealtimeQueues.CHAPTER_UPDATES, freshChapter);
+        }
 
         return toDeadlineRes(deadline);
     }
@@ -333,14 +393,18 @@ public class ChapterService {
                     "Bạn không có quyền submit chapter này", HttpStatus.FORBIDDEN);
         }
 
-        String currentStatus = chapter.getChapterStatus() != null
-                ? chapter.getChapterStatus().getChapterStatusName() : "";
+//        String currentStatus = chapter.getChapterStatus() != null
+//                ? chapter.getChapterStatus().getChapterStatusName() : "";
+//
+//        boolean isFirstSubmit = "pages_submitted".equals(currentStatus);
+//        boolean isResubmitAfterAdminRevision = "pending_publish".equals(currentStatus) && chapter.getAdminNote() != null;
+//
+//        if (!isFirstSubmit && !isResubmitAfterAdminRevision) {
+//            throw new CustomAppException(
+//                    "Chapter phải ở trạng thái 'pages_submitted' hoặc đã bị Admin yêu cầu sửa để submit lại",
+//                    HttpStatus.BAD_REQUEST);
+//        }
 
-        if (!"pages_submitted".equals(currentStatus)) {
-            throw new CustomAppException(
-                    "Chapter phải ở trạng thái 'pages_submitted' để submit lên admin",
-                    HttpStatus.BAD_REQUEST);
-        }
 
         boolean hasUnreviewed = deadlineRepository
                 .existsByChapterChapterIdAndStatus(chapterId, "submitted");
@@ -365,6 +429,7 @@ public class ChapterService {
                         HttpStatus.INTERNAL_SERVER_ERROR));
 
         chapter.setChapterStatus(pendingPublish);
+        chapter.setAdminNote(null);
         chapterRepository.save(chapter);
 
         Series series = chapter.getSeries();
@@ -380,16 +445,21 @@ public class ChapterService {
                 .chapterId(chapterId)
                 .build());
 
-        if (chapter.getSeries() != null && chapter.getSeries().getEditor() != null) {
-          Long tantouId = chapter.getSeries().getEditor().getUserId();
-          notificationService.send(tantouId, "REVIEW",
-              "📬 Chapter chờ duyệt Admin",
-              "Ch." + chapter.getChapterNumber()
-              + (chapter.getTitle() != null ? " – " + chapter.getTitle() : "")
-              + " | " + chapter.getSeries().getTitle() + " đã được gửi lên Admin.");
-      }
+        List<User> admins = userRepository.findAllByRoleName("ADMIN");
+        ChapterRes payload = toResWithSeries(chapter);
 
-        return toResWithSeries(chapter);
+        for (User admin : admins) {
+            notificationService.send(admin.getUserId(), "REVIEW",
+                    "📬 Chapter chờ duyệt đăng",
+                    "Ch." + chapter.getChapterNumber()
+                            + (chapter.getTitle() != null ? " – " + chapter.getTitle() : "")
+                            + " | " + (series != null ? series.getTitle() : "")
+                            + " (Tantou: " + tantou.getFullName() + ") đang chờ bạn duyệt đăng.");
+
+            realtimePushService.pushToUser(admin.getEmail(), RealtimeQueues.ADMIN_CHAPTER_UPDATES, payload);
+        }
+
+        return payload;
     }
 
     private ChapterRes toRes(Chapter c) {
