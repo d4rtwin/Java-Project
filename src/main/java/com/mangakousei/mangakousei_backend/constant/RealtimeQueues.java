@@ -47,4 +47,15 @@ public final class RealtimeQueues {
      * Chapter được TẠO MỚI (Mangaka) hoặc có deadline MỚI (Tantou).
      */
     public static final String CHAPTER_UPDATES = "/queue/chapter-updates";
+
+    /**
+     * Chapter chuyển sang trạng thái pending_publish (Tantou gửi lên Admin)
+     * hoặc Admin vừa duyệt/yêu cầu sửa xong.
+     */
+    public static final String ADMIN_CHAPTER_UPDATES = "/queue/admin-chapter-updates";
+
+    /**
+     * Báo rằng ảnh của 1 hoặc nhiều trang thuộc 1 PageDeadline vừa thay đổi
+     */
+    public static final String DEADLINE_PAGES_CHANGED = "/queue/deadline-pages-changed";
 }

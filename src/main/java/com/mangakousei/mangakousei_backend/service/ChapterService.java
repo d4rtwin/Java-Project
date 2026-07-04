@@ -393,14 +393,18 @@ public class ChapterService {
                     "Bạn không có quyền submit chapter này", HttpStatus.FORBIDDEN);
         }
 
-        String currentStatus = chapter.getChapterStatus() != null
-                ? chapter.getChapterStatus().getChapterStatusName() : "";
+//        String currentStatus = chapter.getChapterStatus() != null
+//                ? chapter.getChapterStatus().getChapterStatusName() : "";
+//
+//        boolean isFirstSubmit = "pages_submitted".equals(currentStatus);
+//        boolean isResubmitAfterAdminRevision = "pending_publish".equals(currentStatus) && chapter.getAdminNote() != null;
+//
+//        if (!isFirstSubmit && !isResubmitAfterAdminRevision) {
+//            throw new CustomAppException(
+//                    "Chapter phải ở trạng thái 'pages_submitted' hoặc đã bị Admin yêu cầu sửa để submit lại",
+//                    HttpStatus.BAD_REQUEST);
+//        }
 
-        if (!"pages_submitted".equals(currentStatus)) {
-            throw new CustomAppException(
-                    "Chapter phải ở trạng thái 'pages_submitted' để submit lên admin",
-                    HttpStatus.BAD_REQUEST);
-        }
 
         boolean hasUnreviewed = deadlineRepository
                 .existsByChapterChapterIdAndStatus(chapterId, "submitted");
@@ -425,6 +429,7 @@ public class ChapterService {
                         HttpStatus.INTERNAL_SERVER_ERROR));
 
         chapter.setChapterStatus(pendingPublish);
+        chapter.setAdminNote(null);
         chapterRepository.save(chapter);
 
         Series series = chapter.getSeries();
@@ -440,16 +445,21 @@ public class ChapterService {
                 .chapterId(chapterId)
                 .build());
 
-        if (chapter.getSeries() != null && chapter.getSeries().getEditor() != null) {
-          Long tantouId = chapter.getSeries().getEditor().getUserId();
-          notificationService.send(tantouId, "REVIEW",
-              "📬 Chapter chờ duyệt Admin",
-              "Ch." + chapter.getChapterNumber()
-              + (chapter.getTitle() != null ? " – " + chapter.getTitle() : "")
-              + " | " + chapter.getSeries().getTitle() + " đã được gửi lên Admin.");
-      }
+        List<User> admins = userRepository.findAllByRoleName("ADMIN");
+        ChapterRes payload = toResWithSeries(chapter);
 
-        return toResWithSeries(chapter);
+        for (User admin : admins) {
+            notificationService.send(admin.getUserId(), "REVIEW",
+                    "📬 Chapter chờ duyệt đăng",
+                    "Ch." + chapter.getChapterNumber()
+                            + (chapter.getTitle() != null ? " – " + chapter.getTitle() : "")
+                            + " | " + (series != null ? series.getTitle() : "")
+                            + " (Tantou: " + tantou.getFullName() + ") đang chờ bạn duyệt đăng.");
+
+            realtimePushService.pushToUser(admin.getEmail(), RealtimeQueues.ADMIN_CHAPTER_UPDATES, payload);
+        }
+
+        return payload;
     }
 
     private ChapterRes toRes(Chapter c) {
